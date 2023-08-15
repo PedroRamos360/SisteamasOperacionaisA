@@ -25,7 +25,7 @@ void random_destroi(random_t *self)
 
 void random_generate_value(random_t *self)
 {
-    int randomValue = rand() % 10;
+    int randomValue = (rand() % 100) + 1;
     self->valor = randomValue;
 }
 

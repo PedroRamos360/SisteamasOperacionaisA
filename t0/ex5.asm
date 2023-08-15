@@ -6,6 +6,12 @@ TECL    DEFINE 4
 TECLOK  DEFINE 5
 TELA    DEFINE 6
 TELAOK  DEFINE 7
+random  DEFINE 10
+
+; carregar valor do segredo
+segredo valor 0
+        LE random
+        ARMM segredo
 
 LIMPA   DEFINE 10 ; \n, limpa a linha
 
@@ -60,8 +66,7 @@ chuteok  cargi msg_ok
 msg_peq  string 'muito pequeno, tente novamente '
 msg_gr   string 'muito grande, tente novamente '
 msg_ok   string 'parabens, voce acertou!!'
-chute    espaco 1
-segredo  valor 42
+chute    espaco 1        
 
 ; função para ler um char da entrada (retorna em A)
 lechar  espaco 1

@@ -12,7 +12,7 @@ int main()
 {
   // cria o hardware
   controle_t *hardware = controle_cria();
-  init_mem(controle_mem(hardware), "t0.maq");
+  init_mem(controle_mem(hardware), "ex5.maq");
   
   controle_laco(hardware);
       
