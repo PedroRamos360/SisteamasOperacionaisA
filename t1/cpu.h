@@ -29,13 +29,14 @@ cpu_t *cpu_cria(mem_t *mem, es_t *es);
 void cpu_destroi(cpu_t *self);
 
 // executa uma instrução
-err_t cpu_executa_1(cpu_t *self);
+void cpu_executa_1(cpu_t *self);
 
 // implementa uma interrupção
 // salva o estado da CPU no início da memória, passa para modo supervisor,
 //   altera A para identificar a requisição de interrupção, altera PC para
 //   o endereço do tratador de interrupção
-void cpu_interrompe(cpu_t *self, irq_t irq);
+// retorna true se interrupção foi aceita ou false caso contrário
+bool cpu_interrompe(cpu_t *self, irq_t irq);
 
 // define a função a chamar quando executar a instrução CHAMAC
 // e o argumento a passar para ela (normalmente, um ponteiro para o SO)

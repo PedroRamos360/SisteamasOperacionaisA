@@ -10,8 +10,9 @@ typedef struct so_t so_t;
 #include "memoria.h"
 #include "cpu.h"
 #include "console.h"
+#include "relogio.h"
 
-so_t *so_cria(cpu_t *cpu, mem_t *mem, console_t *console);
+so_t *so_cria(cpu_t *cpu, mem_t *mem, console_t *console, relogio_t *relogio);
 void so_destroi(so_t *self);
 
 // Chamadas de sistema
@@ -65,5 +66,12 @@ void so_destroi(so_t *self);
 // recebe em X o pid do processo a matar ou 0 para o processo chamador
 // retorna em A: 0 se OK ou um código de erro negativo
 #define SO_MATA_PROC   8
+
+// espera um processo terminar
+// recebe em X o pid do processo a esperar
+// retorna em A: 0 se OK ou um código de erro negativo
+// bloqueia o processo chamador até que o processo com o pid informado termine
+// retorna sem bloquear, com erro, se não existir processo com esse pid
+#define SO_ESPERA_PROC 9
 
 #endif // SO_H

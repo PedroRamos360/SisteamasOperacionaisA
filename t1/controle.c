@@ -39,12 +39,16 @@ void controle_laco(controle_t *self)
   // executa uma instrução por vez até a console dizer que chega
   do {
     if (self->estado == passo || self->estado == executando) {
-      err_t err;
-      err = cpu_executa_1(self->cpu);
-      if (err != ERR_OK) {
-        self->estado = parado;
-      }
+      cpu_executa_1(self->cpu);
       rel_tictac(self->relogio);
+      console_tictac(self->console);
+      // enquanto não tem controlador de interrupção, fala direto com o relógio
+      // o dispositivo 3 do relógio contém 1 se o timer expirou
+      int tem_int;
+      rel_le(self->relogio, 3, &tem_int);
+      if (tem_int != 0) {
+        cpu_interrompe(self->cpu, IRQ_RELOGIO);
+      }
     }
     controle_processa_teclado(self);
     controle_atualiza_console(self);

@@ -58,7 +58,7 @@ char *cpu_descricao(cpu_t *self)
   int opcode = -1;
   mem_le(self->mem, self->PC, &opcode);
   sprintf(descr, "%sPC=%04d A=%06d X=%06d %02d %s",
-                 self->modo == supervisor ? "🦸" : "",
+                 self->modo == supervisor ? "🦸" : "🏃",
                  self->PC, self->A, self->X, opcode, instrucao_nome(opcode));
   // imprime argumento da instrução, se houver
   if (instrucao_num_args(opcode) > 0) {
@@ -384,13 +384,13 @@ static void op_CHAMAS(cpu_t *self) // chamada de sistema
 
 }
 
-err_t cpu_executa_1(cpu_t *self)
+void cpu_executa_1(cpu_t *self)
 {
   // não executa se CPU já estiver em erro
-  if (self->erro != ERR_OK) return self->erro;
+  if (self->erro != ERR_OK) return;
 
   int opcode;
-  if (!pega_opcode(self, &opcode)) return self->erro;
+  if (!pega_opcode(self, &opcode)) return;
 
   switch (opcode) {
     case NOP:    op_NOP(self);    break;
@@ -427,11 +427,12 @@ err_t cpu_executa_1(cpu_t *self)
   if (self->erro != ERR_OK && self->modo == usuario) {
     cpu_interrompe(self, IRQ_ERR_CPU);
   }
-  return self->erro;
 }
 
-void cpu_interrompe(cpu_t *self, irq_t irq)
+bool cpu_interrompe(cpu_t *self, irq_t irq)
 {
+  // só aceita interrupção em modo usuário
+  if (self->modo != usuario) return false;
   // esta é uma CPU boazinha, salva todo o estado interno da CPU
   mem_escreve(self->mem, IRQ_END_PC,          self->PC);
   mem_escreve(self->mem, IRQ_END_A,           self->A);
@@ -444,6 +445,8 @@ void cpu_interrompe(cpu_t *self, irq_t irq)
   self->erro = ERR_OK;
   self->modo = supervisor;
   self->PC = 10;
+
+  return true;
 }
 
 static void cpu_desinterrompe(cpu_t *self)

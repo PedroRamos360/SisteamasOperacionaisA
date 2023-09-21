@@ -1,15 +1,22 @@
 #include "so.h"
 #include "irq.h"
 #include "programa.h"
+#include "processo.h"
 
 #include <stdlib.h>
 #include <stdbool.h>
+
+// intervalo entre interrupções do relógio
+#define INTERVALO_INTERRUPCAO 50   // em instruções executadas
 
 struct so_t {
   cpu_t *cpu;
   mem_t *mem;
   console_t *console;
+  relogio_t *relogio;
+  tabela_processos_t *tabela_processos;
 };
+
 
 // função de tratamento de interrupção (entrada no SO)
 static err_t so_trata_interrupcao(void *argC, int reg_A);
@@ -20,7 +27,7 @@ static bool copia_str_da_mem(int tam, char str[tam], mem_t *mem, int ender);
 
 
 
-so_t *so_cria(cpu_t *cpu, mem_t *mem, console_t *console)
+so_t *so_cria(cpu_t *cpu, mem_t *mem, console_t *console, relogio_t *relogio)
 {
   so_t *self = malloc(sizeof(*self));
   if (self == NULL) return NULL;
@@ -28,6 +35,8 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, console_t *console)
   self->cpu = cpu;
   self->mem = mem;
   self->console = console;
+  self->relogio = relogio;
+  self->tabela_processos = inicia_tabela_processos();
 
   // quando a CPU executar uma instrução CHAMAC, deve chamar essa função
   cpu_define_chamaC(self->cpu, so_trata_interrupcao, self);
@@ -37,6 +46,8 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, console_t *console)
     free(self);
     self = NULL;
   }
+  // programa a interrupção do relógio
+  rel_escr(self->relogio, 2, INTERVALO_INTERRUPCAO);
 
   return self;
 }
@@ -53,6 +64,7 @@ void so_destroi(so_t *self)
 // funções auxiliares para tratar cada tipo de interrupção
 static err_t so_trata_irq_reset(so_t *self);
 static err_t so_trata_irq_err_cpu(so_t *self);
+static err_t so_trata_irq_relogio(so_t *self);
 static err_t so_trata_irq_desconhecida(so_t *self, int irq);
 static err_t so_trata_chamada_sistema(so_t *self);
 
@@ -78,6 +90,9 @@ static err_t so_trata_interrupcao(void *argC, int reg_A)
       break;
     case IRQ_SISTEMA:
       err = so_trata_chamada_sistema(self);
+      break;
+    case IRQ_RELOGIO:
+      err = so_trata_irq_relogio(self);
       break;
     default:
       err = so_trata_irq_desconhecida(self, irq);
@@ -112,6 +127,18 @@ static err_t so_trata_irq_err_cpu(so_t *self)
   console_printf(self->console,
       "SO: IRQ não tratada -- erro na CPU: %s", err_nome(err));
   return ERR_CPU_PARADA;
+}
+
+static err_t so_trata_irq_relogio(so_t *self)
+{
+  // ocorreu uma interrupção do relógio
+  // rearma o interruptor do relógio e reinicializa o timer para a próxima interrupção
+  rel_escr(self->relogio, 3, 0); // desliga o sinalizador de interrupção
+  rel_escr(self->relogio, 2, INTERVALO_INTERRUPCAO);
+  // trata a interrupção
+  // ...
+  console_printf(self->console, "SO: interrupção do relógio (não tratada)");
+  return ERR_OK;
 }
 
 static err_t so_trata_irq_desconhecida(so_t *self, int irq)
@@ -166,9 +193,8 @@ static void so_chamada_le(so_t *self)
     term_le(self->console, 1, &estado);
     if (estado != 0) break;
     // como não está saindo do SO, o laço do processador não tá rodando
-    // esta gambiarra faz o console andar, mas se algum comando para o 
-    // controlador for digitado, vai ser ignorado
-    console_processa_entrada(self->console);
+    // esta gambiarra faz o console andar
+    console_tictac(self->console);
     console_atualiza(self->console);
   }
   int dado;
@@ -187,9 +213,8 @@ static void so_chamada_escr(so_t *self)
     term_le(self->console, 3, &estado);
     if (estado != 0) break;
     // como não está saindo do SO, o laço do processador não tá rodando
-    // esta gambiarra faz o console andar, mas se algum comando para o 
-    // controlador for digitado, vai ser ignorado
-    console_processa_entrada(self->console);
+    // esta gambiarra faz o console andar
+    console_tictac(self->console);
     console_atualiza(self->console);
   }
   int dado;
@@ -209,6 +234,8 @@ static void so_chamada_cria_proc(so_t *self)
     char nome[100];
     if (copia_str_da_mem(100, nome, self->mem, ender_proc)) {
       int ender_carga = so_carrega_programa(self, nome);
+      processo_t *novo_processo = cria_processo(self->tabela_processos.quantidade_processos, nome, 0);
+      console_printf(self->console, "PEDROLOG: %s", nome);
       if (ender_carga > 0) {
         mem_escreve(self->mem, IRQ_END_PC, ender_carga);
         return;

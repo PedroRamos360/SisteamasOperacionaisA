@@ -1,6 +1,0 @@
-- Implementar tratador de exceções que fica que ficará no endereço 10,
-que é onde o endereço que será setado o PC após uma interrupção.
-- Implementar gerenciador de processos
-	- Struct com informações de cada processo (feito)
-	- Uma tabela com todos os processos (feito)
-	- Váriavel global com o processo que está sendo executado
