@@ -2,22 +2,25 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-struct processo_t {
+typedef struct processo_t
+{
   int pid;
-  char nome[32];
+  char nome[100];
   int estado;
-};
+} processo_t;
 
-struct tabela_processos_t {
-  struct processo_t *processos;
+typedef struct tabela_processos_t
+{
+  processo_t *processos;
   int quantidade_processos;
-};
+} tabela_processos_t;
 
-struct processo_t *cria_processo_na_tabela(int pid, char nome[32], int estado) {
-  struct processo_t *novo_processo = (struct processo_t*)malloc(sizeof(struct processo_t));
+processo_t *cria_processo(int pid, char nome[100], int estado)
+{
+  processo_t *novo_processo = (processo_t *)malloc(sizeof(processo_t));
   // Tratamento de erro de alocação, diz o GPT
-  if (novo_processo == NULL) {
+  if (novo_processo == NULL)
+  {
     return NULL;
   }
   novo_processo->pid = pid;
@@ -26,22 +29,31 @@ struct processo_t *cria_processo_na_tabela(int pid, char nome[32], int estado) {
   return novo_processo;
 }
 
-struct tabela_processos_t *inicia_tabela_processos() {
-  struct tabela_processos_t *tabela_processos = (struct tabela_processos_t*)malloc(sizeof(struct tabela_processos_t));
+tabela_processos_t *inicia_tabela_processos()
+{
+  tabela_processos_t *tabela_processos = (tabela_processos_t *)malloc(sizeof(tabela_processos_t));
   tabela_processos->processos = NULL;
   tabela_processos->quantidade_processos = 0;
 
   return tabela_processos;
 }
 
-void adiciona_processo(struct tabela_processos_t *tabela_processos, struct processo_t *novo_processo) {
-  if (tabela_processos == NULL || novo_processo == NULL) {
+void adiciona_processo_na_tabela(tabela_processos_t *tabela_processos, char nome[100])
+{
+
+  if (tabela_processos == NULL)
+  {
+    return;
+  }
+  processo_t *novo_processo = cria_processo(tabela_processos->quantidade_processos + 1, nome, 0);
+  if (novo_processo == NULL)
+  {
     return;
   }
 
-  
-  struct processo_t *novo_array_processos = (struct processo_t*)realloc(tabela_processos->processos, (tabela_processos->quantidade_processos + 1) * sizeof(struct processo_t));
-  if (novo_array_processos == NULL) {
+  processo_t *novo_array_processos = (processo_t *)realloc(tabela_processos->processos, (tabela_processos->quantidade_processos + 1) * sizeof(processo_t));
+  if (novo_array_processos == NULL)
+  {
     return;
   }
 
@@ -49,4 +61,3 @@ void adiciona_processo(struct tabela_processos_t *tabela_processos, struct proce
   tabela_processos->processos[tabela_processos->quantidade_processos] = *novo_processo;
   tabela_processos->quantidade_processos++;
 }
-
