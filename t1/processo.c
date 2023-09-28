@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 typedef struct processo_t
 {
@@ -60,4 +61,35 @@ void adiciona_processo_na_tabela(tabela_processos_t *tabela_processos, char nome
   tabela_processos->processos = novo_array_processos;
   tabela_processos->processos[tabela_processos->quantidade_processos] = *novo_processo;
   tabela_processos->quantidade_processos++;
+}
+
+processo_t *encontrar_processo_por_pid(tabela_processos_t *tabela, int targetPID)
+{
+  for (int i = 0; i < tabela->quantidade_processos; i++)
+  {
+    if (tabela->processos[i].pid == targetPID)
+    {
+      return &(tabela->processos[i]);
+    }
+  }
+
+  return NULL;
+}
+
+bool remove_processo_tabela(tabela_processos_t *tabela, int targetPID)
+{
+  for (int i = 0; i < tabela->quantidade_processos; i++)
+  {
+    if (tabela->processos[i].pid == targetPID)
+    {
+      for (int j = i; j < tabela->quantidade_processos - 1; j++)
+      {
+        tabela->processos[j] = tabela->processos[j + 1];
+      }
+      tabela->quantidade_processos--;
+      return true;
+    }
+  }
+
+  return false;
 }

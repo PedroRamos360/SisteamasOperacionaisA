@@ -9,6 +9,8 @@
 // intervalo entre interrupções do relógio
 #define INTERVALO_INTERRUPCAO 50 // em instruções executadas
 
+int id_processo_executando = NULL;
+
 struct so_t
 {
   cpu_t *cpu;
@@ -231,9 +233,6 @@ static void so_chamada_escr(so_t *self)
 
 static void so_chamada_cria_proc(so_t *self)
 {
-  // ainda sem suporte a processos, carrega programa e passa a executar ele
-  // quem chamou o sistema não vai mais ser executado, coitado!
-
   // em X está o endereço onde está o nome do arquivo
   int ender_proc;
   if (mem_le(self->mem, IRQ_END_X, &ender_proc) == ERR_OK)
@@ -243,8 +242,11 @@ static void so_chamada_cria_proc(so_t *self)
     {
       int ender_carga = so_carrega_programa(self, nome);
       adiciona_processo_na_tabela(self->tabela_processos, nome);
-      console_printf(self->console, "PEDROLOG: %s", nome);
-      console_printf(self->console, "PEDROLOG: %s", self->tabela_processos->processos[0].nome);
+      console_printf(self->console, "PEDROLOG: SO cria processo");
+      processo_t processo_carregado = self->tabela_processos->processos[0];
+      id_processo_executando = processo_carregado.pid;
+      console_printf(self->console, "PEDROLOG: pid: %d nome: %s estado: %d", processo_carregado.pid, 
+      processo_carregado.nome, processo_carregado.estado);
       if (ender_carga > 0)
       {
         mem_escreve(self->mem, IRQ_END_PC, ender_carga);
@@ -257,7 +259,7 @@ static void so_chamada_cria_proc(so_t *self)
 
 static void so_chamada_mata_proc(so_t *self)
 {
-  // ainda sem suporte a processos, retorna erro -1
+  remove_processo_tabela(self->tabela_processos, id_processo_executando); 
   console_printf(self->console, "SO: SO_MATA_PROC não implementada");
   mem_escreve(self->mem, IRQ_END_A, -1);
 }

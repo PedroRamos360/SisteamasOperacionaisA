@@ -16,5 +16,7 @@ typedef struct tabela_processos_t
 
 tabela_processos_t *inicia_tabela_processos();
 void adiciona_processo_na_tabela(tabela_processos_t *tabela_processos, char nome[100]);
+processo_t *encontrar_processo_por_pid(tabela_processos_t *tabela, int targetPID);
+bool remove_processo_tabela(tabela_processos_t *tabela, int targetPID);
 
-#endif // RELOGIO_H
+#endif // PROCESSO_H
