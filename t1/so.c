@@ -132,28 +132,45 @@ static void so_salva_estado_da_cpu(so_t* self)
   mem_le(self->mem, IRQ_END_X, &self->tabela_processos->estado_cpu.registradorX);
   mem_le(self->mem, IRQ_END_A, &self->tabela_processos->estado_cpu.registradorA);
   mem_le(self->mem, IRQ_END_PC, &self->tabela_processos->estado_cpu.registradorPC);
-  mem_le(self->mem, IRQ_END_erro, &self->tabela_processos->estado_cpu.erro);
+  int erro;
+  // erro é do tipo int enquanto estado_cpu.erro = err_t então precisa fazer essa conversão
+  mem_le(self->mem, IRQ_END_erro, &erro);
+  self->tabela_processos->estado_cpu.erro = erro;
 }
 
-static void so_salva_estado_processo(so_t* self) {
+void so_salva_estado_processo(so_t* self) {
+  processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+  // TODO: Consertar seg fault aqui ou em so_carrega_estado_processo
+  int leitura_memoria;
+  mem_le(self->mem, IRQ_END_X, &leitura_memoria);
+  processo_atual->estado_cpu->registradorX = leitura_memoria;
+  mem_le(self->mem, IRQ_END_A, &leitura_memoria);
+  processo_atual->estado_cpu->registradorA = leitura_memoria;
+  mem_le(self->mem, IRQ_END_PC, &leitura_memoria);
+  processo_atual->estado_cpu->registradorPC = leitura_memoria;
+  mem_le(self->mem, IRQ_END_erro, &leitura_memoria);
+  processo_atual->estado_cpu->erro = leitura_memoria;
+}
+
+static void so_carrega_estado_processo(so_t* self) {
   processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
 
-  mem_le(self->mem, IRQ_END_X, &processo_atual->estado_cpu.registradorX);
-  mem_le(self->mem, IRQ_END_A, &processo_atual->estado_cpu.registradorA);
-  mem_le(self->mem, IRQ_END_PC, &processo_atual->estado_cpu.registradorPC);
-  mem_le(self->mem, IRQ_END_erro, &processo_atual->estado_cpu.erro);
+  mem_escreve(self->mem, IRQ_END_X, processo_atual->estado_cpu->registradorX);
+  mem_escreve(self->mem, IRQ_END_A, processo_atual->estado_cpu->registradorA);
+  mem_escreve(self->mem, IRQ_END_PC, processo_atual->estado_cpu->registradorPC);
+  mem_escreve(self->mem, IRQ_END_erro, processo_atual->estado_cpu->erro);
 }
 
-static bool pode_desbloquear(processo_t* processo)
-{
-  // verifica se o processo pode ser desbloqueado
-  // por exemplo, se o processo está bloqueado esperando E/S, verifica se
-  //   a E/S já terminou
-  if (processo->estado == 2)
-    return true;
-  else
-    return false;
-}
+// static bool pode_desbloquear(processo_t* processo)
+// {
+//   // verifica se o processo pode ser desbloqueado
+//   // por exemplo, se o processo está bloqueado esperando E/S, verifica se
+//   //   a E/S já terminou
+//   if (processo->estado == 2)
+//     return true;
+//   else
+//     return false;
+// }
 
 static void so_trata_pendencias(so_t* self)
 {
@@ -166,19 +183,19 @@ static void so_trata_pendencias(so_t* self)
   // Verifica se há E/S pendente
 
   // Verifica se há processos bloqueados
-  for (int i = 0; i < self->tabela_processos->quantidade_processos; i++)
-  {
-    processo_t* processo = &self->tabela_processos->processos[i];
-    if (processo->estado == 2)
-    {
-      // Se houver, verifica se o processo pode ser desbloqueado
-      if (pode_desbloquear(processo))
-      {
-        // Se o processo pode ser desbloqueado, atualiza o seu estado
-        processo->estado = 1;
-      }
-    }
-  }
+  // for (int i = 0; i < self->tabela_processos->quantidade_processos; i++)
+  // {
+  //   processo_t* processo = &self->tabela_processos->processos[i];
+  //   if (processo->estado == 2)
+  //   {
+  //     // Se houver, verifica se o processo pode ser desbloqueado
+  //     if (pode_desbloquear(processo))
+  //     {
+  //       // Se o processo pode ser desbloqueado, atualiza o seu estado
+  //       processo->estado = 1;
+  //     }
+  //   }
+  // }
 
   // Atualiza as contabilidades
 }
@@ -211,8 +228,7 @@ static void so_escalona(so_t* self)
       processo_t* proximo_processo = encontrar_processo_por_pid(self->tabela_processos, proximo_pid);
       id_processo_executando = proximo_processo->pid;
       proximo_processo->estado = EXECUTANDO;
-      // TODO: Tocar o estado do processo pra CPU
-      so_carrega_programa(self, proximo_processo->nome);
+      so_carrega_estado_processo(self);
     }
   }
   // se não houver processo corrente, escolhe um processo para executar
@@ -340,6 +356,7 @@ static void so_chamada_le(so_t* self);
 static void so_chamada_escr(so_t* self);
 static void so_chamada_cria_proc(so_t* self);
 static void so_chamada_mata_proc(so_t* self);
+static void so_chamada_espera_proc(so_t* self);
 
 static err_t so_trata_chamada_sistema(so_t* self)
 {
@@ -362,6 +379,9 @@ static err_t so_trata_chamada_sistema(so_t* self)
     break;
   case SO_MATA_PROC:
     so_chamada_mata_proc(self);
+    break;
+  case SO_ESPERA_PROC:
+    so_chamada_espera_proc(self);
     break;
   default:
     console_printf(self->console,
@@ -426,19 +446,19 @@ static void so_chamada_escr(so_t* self)
 void so_cria_processo(so_t* self, char nome[100])
 {
   adiciona_processo_na_tabela(self->tabela_processos, nome);
-  processo_t processo_carregado = self->tabela_processos->processos[0];
+  processo_t processo_carregado = self->tabela_processos->processos[self->tabela_processos->quantidade_processos - 1];
   id_processo_executando = processo_carregado.pid;
   adiciona_processo_na_fila(self->fila_processos, processo_carregado.pid);
 
   char so_message[200];
-  sprintf(so_message, "SO: Processo criado Nome: %s PID: %d", nome, processo_carregado.pid);
+  sprintf(so_message, "SO: Processo criado Nome: %s PID: %d", processo_carregado.nome, processo_carregado.pid);
 
   console_printf(self->console, so_message);
 }
 
 static void so_chamada_cria_proc(so_t* self)
 {
-  console_printf(self->console, "SO cria proc executada");
+  console_printf(self->console, "SO: chamada cria processo");
   // em X está o endereço onde está o nome do arquivo
   int ender_proc;
   // deveria ler o X do descritor do processo criador
@@ -461,6 +481,17 @@ static void so_chamada_cria_proc(so_t* self)
   // deveria escrever -1 (se erro) ou 0 (se OK) no reg A do processo que
   //   pediu a criação
   mem_escreve(self->mem, IRQ_END_A, -1);
+}
+
+static void so_chamada_espera_proc(so_t* self) {
+  console_printf(self->console, "SO: chamada espera processo");
+  processo_t* processo_esperador = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+  processo_t* processo_esperado = &self->tabela_processos->processos[processo_esperador->estado_cpu->registradorX];
+
+  processo_esperador->esperando_processo = processo_esperado;
+  processo_esperador->estado = BLOQUEADO;
+  console_printf(self->console, "SO: processo %s BLOQUEADO, esperando processo %s", processo_esperador->nome, processo_esperado->nome);
+  remove_processo_da_fila(self->fila_processos, processo_esperador->pid);
 }
 
 static void so_chamada_mata_proc(so_t* self)

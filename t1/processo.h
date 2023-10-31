@@ -24,8 +24,9 @@ typedef struct processo_t
   char nome[100];
   estado_processo estado;
   int quantum;
+  struct processo_t* esperando_processo;
 
-  estado_cpu estado_cpu;
+  estado_cpu* estado_cpu;
 } processo_t;
 
 typedef struct tabela_processos_t

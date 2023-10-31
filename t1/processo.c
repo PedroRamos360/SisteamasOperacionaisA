@@ -5,7 +5,7 @@
 #include <stdbool.h>
 #include "err.h"
 
-int QUANTUM = 5;
+int QUANTUM = 1;
 
 typedef enum estado_processo
 {
@@ -29,8 +29,9 @@ typedef struct processo_t
   char nome[100];
   estado_processo estado;
   int quantum;
+  struct processo_t* esperando_processo;
 
-  estado_cpu estado_cpu;
+  estado_cpu* estado_cpu;
 } processo_t;
 
 typedef struct tabela_processos_t
@@ -98,7 +99,7 @@ void adiciona_processo_na_tabela(tabela_processos_t* tabela_processos, char nome
     pid = tabela_processos->processos[tabela_processos->quantidade_processos - 1].pid + 1;
   }
 
-  processo_t* novo_processo = cria_processo(pid, nome, 0);
+  processo_t* novo_processo = cria_processo(pid, nome, EXECUTANDO);
   if (novo_processo == NULL)
   {
     return;
