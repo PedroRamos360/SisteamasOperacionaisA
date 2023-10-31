@@ -15,11 +15,14 @@
 
 typedef struct cpu_t cpu_t; // tipo opaco
 
-typedef enum { supervisor, usuario } cpu_modo_t;
+typedef enum
+{
+    supervisor,
+    usuario
+} cpu_modo_t;
 
 // tipo da função a ser chamada quando executar a instrução CHAMAC
 typedef err_t (*func_chamaC_t)(void *argC, int reg_A);
-
 
 // cria uma unidade de execução com acesso à memória e ao
 //   controlador de E/S fornecidos

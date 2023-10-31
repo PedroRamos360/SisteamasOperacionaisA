@@ -10,10 +10,10 @@
 #include <stdlib.h>
 
 // constantes
-#define MEM_TAM 10000        // tamanho da memória principal
+#define MEM_TAM 10000 // tamanho da memória principal
 
-
-typedef struct {
+typedef struct
+{
   mem_t *mem;
   cpu_t *cpu;
   relogio_t *relogio;
@@ -73,7 +73,7 @@ int main()
   cria_hardware(&hw);
   // cria o sistema operacional
   so = so_cria(hw.cpu, hw.mem, hw.console, hw.relogio);
-  
+
   // executa o laço de execução da CPU
   controle_laco(hw.controle);
 
@@ -82,4 +82,3 @@ int main()
   destroi_hardware(&hw);
   return 0;
 }
-
