@@ -31,7 +31,7 @@ typedef struct processo_t
   int quantum;
   struct processo_t* esperando_processo;
 
-  estado_cpu* estado_cpu;
+  estado_cpu estado_cpu;
 } processo_t;
 
 typedef struct tabela_processos_t
@@ -40,12 +40,6 @@ typedef struct tabela_processos_t
   int quantidade_processos;
   estado_cpu estado_cpu;
 } tabela_processos_t;
-
-typedef struct fila_t
-{
-  int* processos;
-  int quantidade_processos;
-} fila_t;
 
 void generate_uuid_str(char* uuid_str)
 {
@@ -80,7 +74,7 @@ tabela_processos_t* inicia_tabela_processos()
 }
 
 
-void adiciona_processo_na_tabela(tabela_processos_t* tabela_processos, char nome[100])
+void adiciona_novo_processo_na_tabela(tabela_processos_t* tabela_processos, char nome[100])
 {
 
   if (tabela_processos == NULL)
@@ -116,11 +110,41 @@ void adiciona_processo_na_tabela(tabela_processos_t* tabela_processos, char nome
   tabela_processos->quantidade_processos++;
 }
 
+
+void adiciona_processo_na_tabela(tabela_processos_t* tabela_processos, processo_t* processo) {
+  if (tabela_processos == NULL)
+  {
+    return;
+  }
+
+  processo_t* novo_array_processos = (processo_t*)realloc(tabela_processos->processos, (tabela_processos->quantidade_processos + 1) * sizeof(processo_t));
+  if (novo_array_processos == NULL)
+  {
+    return;
+  }
+
+  tabela_processos->processos = novo_array_processos;
+  tabela_processos->processos[tabela_processos->quantidade_processos] = *processo;
+  tabela_processos->quantidade_processos++;
+}
+
 processo_t* encontrar_processo_por_pid(tabela_processos_t* tabela, int targetPID)
 {
   for (int i = 0; i < tabela->quantidade_processos; i++)
   {
     if (tabela->processos[i].pid == targetPID)
+    {
+      return &(tabela->processos[i]);
+    }
+  }
+
+  return NULL;
+}
+
+processo_t* pega_proximo_processo_disponivel(tabela_processos_t* tabela) {
+  for (int i = 0; i < tabela->quantidade_processos; i++)
+  {
+    if (tabela->processos[i].estado == PRONTO)
     {
       return &(tabela->processos[i]);
     }
@@ -145,41 +169,6 @@ bool remove_processo_tabela(tabela_processos_t* tabela, int targetPID)
   }
 
   return false;
-}
-
-fila_t* inicia_fila() {
-  fila_t* fila = (fila_t*)malloc(sizeof(fila_t));
-  fila->processos = NULL;
-  fila->quantidade_processos = 0;
-
-  return fila;
-}
-
-void adiciona_processo_na_fila(fila_t* fila, int pid) {
-  int* novo_array_processos = (int*)realloc(fila->processos, (fila->quantidade_processos + 1) * sizeof(int));
-  if (novo_array_processos == NULL)
-  {
-    return;
-  }
-
-  fila->processos = novo_array_processos;
-  fila->processos[fila->quantidade_processos] = pid;
-  fila->quantidade_processos++;
-}
-
-void remove_processo_da_fila(fila_t* fila, int pid) {
-  for (int i = 0; i < fila->quantidade_processos; i++)
-  {
-    if (fila->processos[i] == pid)
-    {
-      for (int j = i; j < fila->quantidade_processos - 1; j++)
-      {
-        fila->processos[j] = fila->processos[j + 1];
-      }
-      fila->quantidade_processos--;
-      return;
-    }
-  }
 }
 
 int quantum() {

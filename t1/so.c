@@ -21,7 +21,6 @@ struct so_t
   console_t* console;
   relogio_t* relogio;
   tabela_processos_t* tabela_processos;
-  fila_t* fila_processos;
 };
 
 // função de tratamento de interrupção (entrada no SO)
@@ -42,7 +41,6 @@ so_t* so_cria(cpu_t* cpu, mem_t* mem, console_t* console, relogio_t* relogio)
   self->console = console;
   self->relogio = relogio;
   self->tabela_processos = inicia_tabela_processos();
-  self->fila_processos = inicia_fila();
 
   // quando a CPU executar uma instrução CHAMAC, deve chamar a função
   //   so_trata_interrupcao
@@ -140,25 +138,22 @@ static void so_salva_estado_da_cpu(so_t* self)
 
 void so_salva_estado_processo(so_t* self) {
   processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
-  // TODO: Consertar seg fault aqui ou em so_carrega_estado_processo
+  console_printf(self->console, "SO: Salva estado da cpu %s", processo_atual->nome);
+  mem_le(self->mem, IRQ_END_X, &processo_atual->estado_cpu.registradorX);
+  mem_le(self->mem, IRQ_END_A, &processo_atual->estado_cpu.registradorA);
+  mem_le(self->mem, IRQ_END_PC, &processo_atual->estado_cpu.registradorPC);
   int leitura_memoria;
-  mem_le(self->mem, IRQ_END_X, &leitura_memoria);
-  processo_atual->estado_cpu->registradorX = leitura_memoria;
-  mem_le(self->mem, IRQ_END_A, &leitura_memoria);
-  processo_atual->estado_cpu->registradorA = leitura_memoria;
-  mem_le(self->mem, IRQ_END_PC, &leitura_memoria);
-  processo_atual->estado_cpu->registradorPC = leitura_memoria;
   mem_le(self->mem, IRQ_END_erro, &leitura_memoria);
-  processo_atual->estado_cpu->erro = leitura_memoria;
+  processo_atual->estado_cpu.erro = leitura_memoria;
 }
 
 static void so_carrega_estado_processo(so_t* self) {
   processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
-
-  mem_escreve(self->mem, IRQ_END_X, processo_atual->estado_cpu->registradorX);
-  mem_escreve(self->mem, IRQ_END_A, processo_atual->estado_cpu->registradorA);
-  mem_escreve(self->mem, IRQ_END_PC, processo_atual->estado_cpu->registradorPC);
-  mem_escreve(self->mem, IRQ_END_erro, processo_atual->estado_cpu->erro);
+  console_printf(self->console, "SO: Carrega estado da cpu %s", processo_atual->nome);
+  mem_escreve(self->mem, IRQ_END_X, processo_atual->estado_cpu.registradorX);
+  mem_escreve(self->mem, IRQ_END_A, processo_atual->estado_cpu.registradorA);
+  mem_escreve(self->mem, IRQ_END_PC, processo_atual->estado_cpu.registradorPC);
+  mem_escreve(self->mem, IRQ_END_erro, processo_atual->estado_cpu.erro);
 }
 
 // static bool pode_desbloquear(processo_t* processo)
@@ -209,10 +204,9 @@ static void so_escalona(so_t* self)
       id_processo_executando = -1;
       return;
     }
-    processo_t proximo_processo = self->tabela_processos->processos[0];
-    id_processo_executando = proximo_processo.pid;
-    proximo_processo.estado = EXECUTANDO;
-    self->tabela_processos->processos[0] = proximo_processo;
+    processo_t* proximo_processo = pega_proximo_processo_disponivel(self->tabela_processos);
+    id_processo_executando = proximo_processo->pid;
+    proximo_processo->estado = EXECUTANDO;
   }
   else
   {
@@ -222,10 +216,9 @@ static void so_escalona(so_t* self)
       sprintf(so_message, "SO: quantum do processo: %s expirado, escalonando processo...", processo_executando->nome);
       console_printf(self->console, so_message);
       // joga o processo pro fim da fila
-      remove_processo_da_fila(self->fila_processos, processo_executando->pid);
-      adiciona_processo_na_fila(self->fila_processos, processo_executando->pid);
-      int proximo_pid = self->fila_processos->processos[0];
-      processo_t* proximo_processo = encontrar_processo_por_pid(self->tabela_processos, proximo_pid);
+      remove_processo_tabela(self->tabela_processos, processo_executando->pid);
+      adiciona_processo_na_tabela(self->tabela_processos, processo_executando);
+      processo_t* proximo_processo = pega_proximo_processo_disponivel(self->tabela_processos);
       id_processo_executando = proximo_processo->pid;
       proximo_processo->estado = EXECUTANDO;
       so_carrega_estado_processo(self);
@@ -362,8 +355,9 @@ static err_t so_trata_chamada_sistema(so_t* self)
 {
   // com processos, a identificação da chamada está no reg A no descritor
   //   do processo
-  int id_chamada;
-  mem_le(self->mem, IRQ_END_A, &id_chamada);
+  so_salva_estado_processo(self);
+  processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+  int id_chamada = processo_atual->estado_cpu.registradorA;
   console_printf(self->console,
     "SO: chamada de sistema %d", id_chamada);
   switch (id_chamada)
@@ -417,7 +411,8 @@ static void so_chamada_le(so_t* self)
   int dado;
   term_le(self->console, 0, &dado);
   // com processo, deveria escrever no reg A do processo
-  mem_escreve(self->mem, IRQ_END_A, dado);
+  processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+  processo_atual->estado_cpu.registradorA = dado;
 }
 
 static void so_chamada_escr(so_t* self)
@@ -445,10 +440,9 @@ static void so_chamada_escr(so_t* self)
 
 void so_cria_processo(so_t* self, char nome[100])
 {
-  adiciona_processo_na_tabela(self->tabela_processos, nome);
+  adiciona_novo_processo_na_tabela(self->tabela_processos, nome);
   processo_t processo_carregado = self->tabela_processos->processos[self->tabela_processos->quantidade_processos - 1];
   id_processo_executando = processo_carregado.pid;
-  adiciona_processo_na_fila(self->fila_processos, processo_carregado.pid);
 
   char so_message[200];
   sprintf(so_message, "SO: Processo criado Nome: %s PID: %d", processo_carregado.nome, processo_carregado.pid);
@@ -486,19 +480,18 @@ static void so_chamada_cria_proc(so_t* self)
 static void so_chamada_espera_proc(so_t* self) {
   console_printf(self->console, "SO: chamada espera processo");
   processo_t* processo_esperador = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
-  processo_t* processo_esperado = &self->tabela_processos->processos[processo_esperador->estado_cpu->registradorX];
+  processo_t* processo_esperado = &self->tabela_processos->processos[processo_esperador->estado_cpu.registradorX];
 
   processo_esperador->esperando_processo = processo_esperado;
   processo_esperador->estado = BLOQUEADO;
   console_printf(self->console, "SO: processo %s BLOQUEADO, esperando processo %s", processo_esperador->nome, processo_esperado->nome);
-  remove_processo_da_fila(self->fila_processos, processo_esperador->pid);
 }
 
 static void so_chamada_mata_proc(so_t* self)
 {
+  processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+  console_printf(self->console, "SO: Removendo processo %s PID: %d da tabela e da fila", processo_atual->nome, processo_atual->pid);
   remove_processo_tabela(self->tabela_processos, id_processo_executando);
-  console_printf(self->console, "SO: SO_MATA_PROC não implementada");
-  mem_escreve(self->mem, IRQ_END_A, -1);
 }
 
 // carrega o programa na memória
