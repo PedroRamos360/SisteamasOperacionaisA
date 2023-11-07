@@ -38,7 +38,6 @@ typedef struct tabela_processos_t
 {
   processo_t* processos;
   int quantidade_processos;
-  estado_cpu estado_cpu;
 } tabela_processos_t;
 
 void generate_uuid_str(char* uuid_str)
@@ -61,6 +60,12 @@ processo_t* cria_processo(int pid, char nome[100], int estado)
   novo_processo->pid = pid;
   novo_processo->estado = estado;
   novo_processo->quantum = QUANTUM;
+  novo_processo->esperando_processo = NULL;
+  novo_processo->estado_cpu.registradorX = 0;
+  novo_processo->estado_cpu.registradorA = 0;
+  novo_processo->estado_cpu.registradorPC = 0;
+  novo_processo->estado_cpu.complemento = 0;
+  novo_processo->estado_cpu.erro = ERR_OK;
   return novo_processo;
 }
 
@@ -93,7 +98,7 @@ void adiciona_novo_processo_na_tabela(tabela_processos_t* tabela_processos, char
     pid = tabela_processos->processos[tabela_processos->quantidade_processos - 1].pid + 1;
   }
 
-  processo_t* novo_processo = cria_processo(pid, nome, EXECUTANDO);
+  processo_t* novo_processo = cria_processo(pid, nome, PRONTO);
   if (novo_processo == NULL)
   {
     return;

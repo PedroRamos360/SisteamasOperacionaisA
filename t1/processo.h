@@ -33,13 +33,13 @@ typedef struct tabela_processos_t
 {
   processo_t* processos;
   int quantidade_processos;
-  estado_cpu estado_cpu;
 } tabela_processos_t;
 
 tabela_processos_t* inicia_tabela_processos();
 void adiciona_novo_processo_na_tabela(tabela_processos_t* tabela_processos, char nome[100]);
 void adiciona_processo_na_tabela(tabela_processos_t* tabela_processos, processo_t* processo);
 processo_t* encontrar_processo_por_pid(tabela_processos_t* tabela, int targetPID);
+processo_t* cria_processo(int pid, char nome[100], int estado);
 processo_t* pega_proximo_processo_disponivel(tabela_processos_t* tabela);
 bool remove_processo_tabela(tabela_processos_t* tabela, int targetPID);
 int quantum();
