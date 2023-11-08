@@ -421,27 +421,25 @@ static void so_chamada_cria_proc(so_t* self)
 {
   console_printf(self->console, "SO: chamada cria processo");
   // em X está o endereço onde está o nome do arquivo
-  int ender_proc;
+  processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+  int ender_proc = processo_atual->estado_cpu.registradorX;
   // deveria ler o X do descritor do processo criador
-  if (mem_le(self->mem, IRQ_END_X, &ender_proc) == ERR_OK)
+  char nome[100];
+  if (copia_str_da_mem(100, nome, self->mem, ender_proc))
   {
-    char nome[100];
-    if (copia_str_da_mem(100, nome, self->mem, ender_proc))
-    {
-      int ender_carga = so_carrega_programa(self, nome);
-      so_cria_processo(self, nome);
+    int ender_carga = so_carrega_programa(self, nome);
+    so_cria_processo(self, nome);
 
-      if (ender_carga > 0)
-      {
-        // deveria escrever no PC do descritor do processo criado
-        mem_escreve(self->mem, IRQ_END_PC, ender_carga);
-        return;
-      }
+    if (ender_carga > 0)
+    {
+      // deveria escrever no PC do descritor do processo criador
+      processo_atual->estado_cpu.registradorPC = ender_carga;
+      return;
     }
   }
   // deveria escrever -1 (se erro) ou 0 (se OK) no reg A do processo que
   //   pediu a criação
-  mem_escreve(self->mem, IRQ_END_A, -1);
+  processo_atual->estado_cpu.registradorA = -1;
 }
 
 static void so_chamada_espera_proc(so_t* self) {
