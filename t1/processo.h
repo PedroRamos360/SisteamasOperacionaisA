@@ -16,6 +16,7 @@ typedef struct estado_cpu
   int registradorPC;
   err_t erro;
   int complemento;
+  int modo;
 } estado_cpu;
 
 typedef struct processo_t
@@ -40,6 +41,7 @@ void adiciona_novo_processo_na_tabela(tabela_processos_t* tabela_processos, char
 void adiciona_processo_na_tabela(tabela_processos_t* tabela_processos, processo_t* processo);
 processo_t* encontrar_processo_por_pid(tabela_processos_t* tabela, int targetPID);
 processo_t* cria_processo(int pid, char nome[100], int estado);
+processo_t* copia_processo(processo_t* processo);
 processo_t* pega_proximo_processo_disponivel(tabela_processos_t* tabela);
 bool remove_processo_tabela(tabela_processos_t* tabela, int targetPID);
 int quantum();

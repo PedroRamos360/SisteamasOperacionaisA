@@ -21,6 +21,7 @@ typedef struct estado_cpu
   int registradorPC;
   err_t erro;
   int complemento;
+  int modo;
 } estado_cpu;
 
 typedef struct processo_t
@@ -65,7 +66,30 @@ processo_t* cria_processo(int pid, char nome[100], int estado)
   novo_processo->estado_cpu.registradorA = 0;
   novo_processo->estado_cpu.registradorPC = 0;
   novo_processo->estado_cpu.complemento = 0;
+  novo_processo->estado_cpu.modo = 1; // usuário
   novo_processo->estado_cpu.erro = ERR_OK;
+  return novo_processo;
+}
+
+processo_t* copia_processo(processo_t* processo)
+{
+  processo_t* novo_processo = (processo_t*)malloc(sizeof(processo_t));
+  if (novo_processo == NULL)
+  {
+    return NULL;
+  }
+
+  strncpy(novo_processo->nome, processo->nome, sizeof(novo_processo->nome));
+  novo_processo->pid = processo->pid;
+  novo_processo->estado = processo->estado;
+  novo_processo->quantum = processo->quantum;
+  novo_processo->esperando_processo = processo->esperando_processo;
+  novo_processo->estado_cpu.registradorX = processo->estado_cpu.registradorX;
+  novo_processo->estado_cpu.registradorA = processo->estado_cpu.registradorA;
+  novo_processo->estado_cpu.registradorPC = processo->estado_cpu.registradorPC;
+  novo_processo->estado_cpu.complemento = processo->estado_cpu.complemento;
+  novo_processo->estado_cpu.modo = processo->estado_cpu.modo; // usuário
+  novo_processo->estado_cpu.erro = processo->estado_cpu.erro;
   return novo_processo;
 }
 

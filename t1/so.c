@@ -141,6 +141,7 @@ void so_carrega_estado_processo_na_cpu(so_t* self) {
   mem_escreve(self->mem, IRQ_END_PC, processo_atual->estado_cpu.registradorPC);
   mem_escreve(self->mem, IRQ_END_erro, processo_atual->estado_cpu.erro);
   mem_escreve(self->mem, IRQ_END_complemento, processo_atual->estado_cpu.complemento);
+  mem_escreve(self->mem, IRQ_END_modo, processo_atual->estado_cpu.modo);
 }
 
 static void so_trata_pendencias(so_t* self)
@@ -187,20 +188,32 @@ static void so_escalona(so_t* self)
   }
   else
   {
-    processo_t* copia_processo = cria_processo(processo_executando->pid, processo_executando->nome, processo_executando->estado);
-    if (copia_processo->estado == PRONTO)
+    processo_t* processo_copia = copia_processo(processo_executando);
+    if (processo_copia->estado == PRONTO || processo_copia->estado == BLOQUEADO)
     {
-      char so_message[200];
-      sprintf(so_message, "SO: quantum do processo: %s expirado, escalonando processo...", copia_processo->nome);
-      console_printf(self->console, so_message);
+      if (processo_copia->estado == BLOQUEADO) {
+        char so_message[200];
+        sprintf(so_message, "SO: processo %s bloqueado, escalonando processo...", processo_copia->nome);
+        console_printf(self->console, so_message);
+      }
+      else {
+        char so_message[200];
+        sprintf(so_message, "SO: quantum do processo: %s expirado, escalonando processo...", processo_copia->nome);
+        console_printf(self->console, so_message);
+      }
       // joga o processo pro fim da fila
-      remove_processo_tabela(self->tabela_processos, copia_processo->pid);
-      adiciona_processo_na_tabela(self->tabela_processos, copia_processo);
+      remove_processo_tabela(self->tabela_processos, processo_copia->pid);
+      adiciona_processo_na_tabela(self->tabela_processos, processo_copia);
       processo_t* proximo_processo = pega_proximo_processo_disponivel(self->tabela_processos);
       id_processo_executando = proximo_processo->pid;
       proximo_processo->estado = EXECUTANDO;
+      if (proximo_processo->pid == processo_copia->pid) {
+        so_salva_estado_cpu_no_processo(self);
+      }
     }
-    so_salva_estado_cpu_no_processo(self);
+    else {
+      so_salva_estado_cpu_no_processo(self);
+    }
   }
 }
 
@@ -241,6 +254,7 @@ static err_t so_trata_irq_reset(so_t* self)
     return ERR_CPU_PARADA;
   }
   processo_adicionado->estado_cpu.registradorPC = ender;
+  processo_adicionado->estado_cpu.modo = usuario;
 
   mem_escreve(self->mem, IRQ_END_modo, usuario);
   return ERR_OK;
@@ -284,7 +298,7 @@ static err_t so_trata_irq_relogio(so_t* self)
       processo_atual->quantum = quantum();
     }
   }
-  console_printf(self->console, "SO: interrupção do relógio (não tratada)");
+  console_printf(self->console, "SO: interrupção do relógio");
   return ERR_OK;
 }
 
@@ -428,12 +442,12 @@ static void so_chamada_cria_proc(so_t* self)
   if (copia_str_da_mem(100, nome, self->mem, ender_proc))
   {
     int ender_carga = so_carrega_programa(self, nome);
-    so_cria_processo(self, nome);
+    processo_t* processo_criado = so_cria_processo(self, nome);
 
     if (ender_carga > 0)
     {
-      // deveria escrever no PC do descritor do processo criador
-      processo_atual->estado_cpu.registradorPC = ender_carga;
+      // deveria escrever no PC do descritor do processo criado
+      processo_criado->estado_cpu.registradorPC = ender_carga;
       return;
     }
   }
