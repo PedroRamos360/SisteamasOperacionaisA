@@ -77,9 +77,9 @@ struct console_t
 // funções auxiliares
 static void init_curses(void);
 
-console_t *console_cria(void)
+console_t* console_cria(void)
 {
-  console_t *self = malloc(sizeof(*self));
+  console_t* self = malloc(sizeof(*self));
   if (self == NULL)
     return NULL;
 
@@ -118,7 +118,7 @@ static void init_curses(void)
   initscr();
   cbreak();   // lê cada char, não espera enter
   noecho();   // não mostra o que é digitado
-  timeout(5); // não espera digitar, retorna ERR se nada foi digitado
+  timeout(3); // não espera digitar, retorna ERR se nada foi digitado
   start_color();
   init_pair(COR_TXT_PAR, COLOR_GREEN, COLOR_BLACK);
   init_pair(COR_CURSOR_PAR, COLOR_BLACK, COLOR_GREEN);
@@ -129,7 +129,7 @@ static void init_curses(void)
   init_pair(COR_OCUPADO, COLOR_BLACK, COLOR_RED);
 }
 
-void console_destroi(console_t *self)
+void console_destroi(console_t* self)
 {
   console_atualiza(self);
   attron(COLOR_PAIR(COR_OCUPADO));
@@ -147,12 +147,12 @@ void console_destroi(console_t *self)
 
 // SAIDA
 
-static bool pode_imprimir_no_term(console_t *self, int t)
+static bool pode_imprimir_no_term(console_t* self, int t)
 {
   return self->term[t].estado_saida == normal;
 }
 
-static void imprime_no_term(console_t *self, int t, char ch)
+static void imprime_no_term(console_t* self, int t, char ch)
 {
   if (pode_imprimir_no_term(self, t))
   {
@@ -173,9 +173,9 @@ static void imprime_no_term(console_t *self, int t, char ch)
   }
 }
 
-static void rola_saida(term_t *termp)
+static void rola_saida(term_t* termp)
 {
-  char *p = termp->saida;
+  char* p = termp->saida;
   int tam = strlen(p);
   p[tam] = p[tam + 1];
   if (p[tam] == '\0')
@@ -188,9 +188,9 @@ static void rola_saida(term_t *termp)
   }
 }
 
-static void limpa_saida(term_t *termp)
+static void limpa_saida(term_t* termp)
 {
-  char *p = termp->saida;
+  char* p = termp->saida;
   int tam = strlen(p);
   memmove(p, p + 1, tam);
   if (tam <= 1)
@@ -199,11 +199,11 @@ static void limpa_saida(term_t *termp)
   }
 }
 
-static void rola_saidas(console_t *self)
+static void rola_saidas(console_t* self)
 {
   for (int t = 0; t < N_TERM; t++)
   {
-    term_t *termp = &self->term[t];
+    term_t* termp = &self->term[t];
     switch (termp->estado_saida)
     {
     case normal:
@@ -220,24 +220,24 @@ static void rola_saidas(console_t *self)
 
 // ENTRADA
 
-static bool tem_char_no_term(console_t *self, int t)
+static bool tem_char_no_term(console_t* self, int t)
 {
   return self->term[t].entrada[0] != '\0';
 }
 
-static char remove_char_do_term(console_t *self, int t)
+static char remove_char_do_term(console_t* self, int t)
 {
   if (!tem_char_no_term(self, t))
     return 0;
-  char *p = self->term[t].entrada;
+  char* p = self->term[t].entrada;
   char ch = *p;
   memmove(p, p + 1, strlen(p));
   return ch;
 }
 
-static void insere_char_no_term(console_t *self, int t, char ch)
+static void insere_char_no_term(console_t* self, int t, char ch)
 {
-  char *p = self->term[t].entrada;
+  char* p = self->term[t].entrada;
   int tam = strlen(p);
   if (tam >= N_COL - 2)
     return;
@@ -247,7 +247,7 @@ static void insere_char_no_term(console_t *self, int t, char ch)
 
 // CONSOLE
 
-static void insere_string_na_console(console_t *self, char *s)
+static void insere_string_na_console(console_t* self, char* s)
 {
   for (int l = 0; l < N_LIN_CONSOLE - 1; l++)
   {
@@ -258,11 +258,11 @@ static void insere_string_na_console(console_t *self, char *s)
   self->txt_console[N_LIN_CONSOLE - 1][N_COL] = '\0'; // grrrr
 }
 
-static void insere_strings_na_console(console_t *self, char *s)
+static void insere_strings_na_console(console_t* self, char* s)
 {
   while (*s != '\0')
   {
-    char *f = strchr(s, '\n');
+    char* f = strchr(s, '\n');
     if (f != NULL)
     {
       *f = '\0';
@@ -274,13 +274,13 @@ static void insere_strings_na_console(console_t *self, char *s)
   }
 }
 
-void console_print_status(console_t *self, char *txt)
+void console_print_status(console_t* self, char* txt)
 {
   // imprime alinhado a esquerda ("-"), max N_COL chars ("*")
   sprintf(self->txt_status, "%-*s", N_COL, txt);
 }
 
-int console_printf(console_t *self, char *formato, ...)
+int console_printf(console_t* self, char* formato, ...)
 {
   // esta função usa número variável de argumentos. Dá uma olhada em:
   // https://www.geeksforgeeks.org/variadic-functions-in-c/
@@ -303,7 +303,7 @@ static int term(char c)
   return -1;
 }
 
-static void insere_str_no_term(console_t *self, char c, char *str)
+static void insere_str_no_term(console_t* self, char c, char* str)
 {
   // insere caracteres no terminal (e espaço no final)
   int t = term(c);
@@ -312,7 +312,7 @@ static void insere_str_no_term(console_t *self, char c, char *str)
     console_printf(self, "Terminal '%c' inválido\n", c);
     return;
   }
-  char *p = str;
+  char* p = str;
   while (*p != '\0')
   {
     insere_char_no_term(self, t, *p);
@@ -321,7 +321,7 @@ static void insere_str_no_term(console_t *self, char c, char *str)
   insere_char_no_term(self, t, ' ');
 }
 
-static void limpa_saida_do_term(console_t *self, char c)
+static void limpa_saida_do_term(console_t* self, char c)
 {
   int t = term(c);
   if (t == -1)
@@ -333,7 +333,7 @@ static void limpa_saida_do_term(console_t *self, char c)
   self->term[t].estado_saida = normal;
 }
 
-static void insere_comando_externo(console_t *self, char c)
+static void insere_comando_externo(console_t* self, char c)
 {
   int n_cmd = strlen(self->fila_de_comandos_externos);
   if (n_cmd < N_CMD_EXT - 2)
@@ -343,9 +343,9 @@ static void insere_comando_externo(console_t *self, char c)
   }
 }
 
-static char remove_comando_externo(console_t *self)
+static char remove_comando_externo(console_t* self)
 {
-  char *p = self->fila_de_comandos_externos;
+  char* p = self->fila_de_comandos_externos;
   char cmd = *p;
   if (cmd != '\0')
   {
@@ -354,7 +354,7 @@ static char remove_comando_externo(console_t *self)
   return cmd;
 }
 
-static void interpreta_entrada(console_t *self)
+static void interpreta_entrada(console_t* self)
 {
   // interpreta uma linha digitada pelo operador
   // Comandos aceitos:
@@ -366,7 +366,7 @@ static void interpreta_entrada(console_t *self)
   // F     fim da simulação
   // retorna o caractere correspondente ao comando se não tratar localmente
   //   (comandos de controle da execução), ou '\0'
-  char *linha = self->digitando;
+  char* linha = self->digitando;
   console_printf(self, "%s", linha);
   char cmd = toupper(linha[0]);
   switch (cmd)
@@ -390,7 +390,7 @@ static void interpreta_entrada(console_t *self)
 }
 
 // lê e guarda um caractere do teclado; interpreta linha se for 'enter'
-static void verifica_entrada(console_t *self)
+static void verifica_entrada(console_t* self)
 {
   int ch = getch();
   if (ch == ERR)
@@ -416,7 +416,7 @@ static void verifica_entrada(console_t *self)
 
 // DESENHO
 
-static void desenha_terminal(term_t *termp, int linha)
+static void desenha_terminal(term_t* termp, int linha)
 {
   mvprintw(linha, 0, "%-*s", N_COL, "");
   mvprintw(linha, 0, "%s", termp->saida);
@@ -435,11 +435,11 @@ static void desenha_terminal(term_t *termp, int linha)
   attroff(COLOR_PAIR(termp->cor_cursor));
 }
 
-static void desenha_terminais(console_t *self)
+static void desenha_terminais(console_t* self)
 {
   for (int t = 0; t < N_TERM; t++)
   {
-    term_t *termp = &self->term[t];
+    term_t* termp = &self->term[t];
     int linha = LINHA_TERM + t * 2;
     attron(COLOR_PAIR(termp->cor_txt));
     desenha_terminal(termp, linha);
@@ -447,14 +447,14 @@ static void desenha_terminais(console_t *self)
   }
 }
 
-static void desenha_status(console_t *self)
+static void desenha_status(console_t* self)
 {
   attron(COLOR_PAIR(4));
   mvprintw(LINHA_STATUS, 0, "%-*s", N_COL, self->txt_status);
   attroff(COLOR_PAIR(4));
 }
 
-static void desenha_console(console_t *self)
+static void desenha_console(console_t* self)
 {
   // FIXME: SEGMENTATION FAULT CORE DUMPED ESTÁ AQUI
   attron(COLOR_PAIR(COR_CONSOLE));
@@ -466,28 +466,28 @@ static void desenha_console(console_t *self)
   attroff(COLOR_PAIR(COR_CONSOLE));
 }
 
-static void desenha_entrada(console_t *self)
+static void desenha_entrada(console_t* self)
 {
   attron(COLOR_PAIR(COR_ENTRADA));
   mvprintw(LINHA_ENTRADA, 0, "%*s", N_COL,
-           "P=para C=continua 1=passo F=fim  Ets=entra Zt=zera");
+    "P=para C=continua 1=passo F=fim  Ets=entra Zt=zera");
   mvprintw(LINHA_ENTRADA, 0, "%s", self->digitando);
   attroff(COLOR_PAIR(COR_ENTRADA));
 }
 
-char console_processa_entrada(console_t *self)
+char console_processa_entrada(console_t* self)
 {
   verifica_entrada(self);
   return remove_comando_externo(self);
 }
 
-void console_tictac(console_t *self)
+void console_tictac(console_t* self)
 {
   verifica_entrada(self);
   rola_saidas(self);
 }
 
-void console_atualiza(console_t *self)
+void console_atualiza(console_t* self)
 {
   desenha_terminais(self);
   desenha_status(self);
@@ -498,9 +498,9 @@ void console_atualiza(console_t *self)
   refresh();
 }
 
-err_t term_le(void *disp, int id, int *pvalor)
+err_t term_le(void* disp, int id, int* pvalor)
 {
-  console_t *self = disp;
+  console_t* self = disp;
   // cada terminal tem 4 dispositivos:
   //   leitura, estado da leitura, escrita, estado da escrita
   int term = id / 4;
@@ -541,9 +541,9 @@ err_t term_le(void *disp, int id, int *pvalor)
   return ERR_OK;
 }
 
-err_t term_escr(void *disp, int id, int valor)
+err_t term_escr(void* disp, int id, int valor)
 {
-  console_t *self = disp;
+  console_t* self = disp;
   // cada terminal tem 4 dispositivos:
   //   leitura, estado da leitura, escrita, estado da escrita
   int term = id / 4;

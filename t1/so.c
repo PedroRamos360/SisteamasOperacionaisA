@@ -88,6 +88,15 @@ static void so_escalona(so_t* self);
 processo_t* so_cria_processo(so_t* self, char nome[100]);
 void so_salva_estado_cpu_no_processo(so_t* self);
 void so_carrega_estado_processo_na_cpu(so_t* self);
+bool pode_desbloquear(so_t* self, processo_t* processo);
+
+// Chamadas de sistema
+
+static void so_chamada_le(so_t* self);
+static void so_chamada_escr(so_t* self);
+static void so_chamada_cria_proc(so_t* self);
+static void so_chamada_mata_proc(so_t* self);
+static void so_chamada_espera_proc(so_t* self);
 
 // função a ser chamada pela CPU quando executa a instrução CHAMAC
 // essa instrução só deve ser executada quando for tratar uma interrupção
@@ -144,6 +153,35 @@ void so_carrega_estado_processo_na_cpu(so_t* self) {
   mem_escreve(self->mem, IRQ_END_modo, processo_atual->estado_cpu.modo);
 }
 
+bool pode_desbloquear(so_t* self, processo_t* processo) {
+  int terminal_el = (id_processo_executando * 4) + 1;
+  int terminal_ee = (id_processo_executando * 4) + 3;
+
+  int estado_escrita;
+  int estado_leitura;
+  term_le(self->console, terminal_el, &estado_leitura);
+  term_le(self->console, terminal_ee, &estado_escrita);
+
+  dispositivo_bloqueado dispositivo = processo->dispositivo_bloqueado;
+  processo_t* processo_esperado = processo->esperando_processo;
+
+  if (processo_esperado != NULL) {
+    processo_t* processo_tabela = encontrar_processo_por_pid(self->tabela_processos, processo_esperado->pid);
+    if (processo_tabela != NULL)
+      return false;
+  }
+
+  if (dispositivo == ESCRITA && estado_escrita == 0) {
+    return false;
+  }
+
+  if (dispositivo == LEITURA && estado_leitura == 0) {
+    return false;
+  }
+
+  return true;
+}
+
 static void so_trata_pendencias(so_t* self)
 {
   // realiza ações que não são diretamente ligadas com a interrupção que
@@ -155,19 +193,19 @@ static void so_trata_pendencias(so_t* self)
   // Verifica se há E/S pendente
 
   // Verifica se há processos bloqueados
-  // for (int i = 0; i < self->tabela_processos->quantidade_processos; i++)
-  // {
-  //   processo_t* processo = &self->tabela_processos->processos[i];
-  //   if (processo->estado == 2)
-  //   {
-  //     // Se houver, verifica se o processo pode ser desbloqueado
-  //     if (pode_desbloquear(processo))
-  //     {
-  //       // Se o processo pode ser desbloqueado, atualiza o seu estado
-  //       processo->estado = 1;
-  //     }
-  //   }
-  // }
+  for (int i = 0; i < self->tabela_processos->quantidade_processos; i++)
+  {
+    processo_t* processo = &self->tabela_processos->processos[i];
+    if (processo->estado == BLOQUEADO)
+    {
+      // Se houver, verifica se o processo pode ser desbloqueado
+      if (pode_desbloquear(self, processo))
+      {
+        // Se o processo pode ser desbloqueado, atualiza o seu estado
+        processo->estado = PRONTO;
+      }
+    }
+  }
 
   // Atualiza as contabilidades
 }
@@ -183,6 +221,10 @@ static void so_escalona(so_t* self)
       return;
     }
     processo_t* proximo_processo = pega_proximo_processo_disponivel(self->tabela_processos);
+    if (proximo_processo == NULL) {
+      mem_escreve(self->mem, IRQ_END_erro, ERR_CPU_PARADA);
+      return;
+    }
     id_processo_executando = proximo_processo->pid;
     proximo_processo->estado = EXECUTANDO;
   }
@@ -205,6 +247,10 @@ static void so_escalona(so_t* self)
       remove_processo_tabela(self->tabela_processos, processo_copia->pid);
       adiciona_processo_na_tabela(self->tabela_processos, processo_copia);
       processo_t* proximo_processo = pega_proximo_processo_disponivel(self->tabela_processos);
+      if (proximo_processo == NULL) {
+        mem_escreve(self->mem, IRQ_END_erro, ERR_CPU_PARADA);
+        return;
+      }
       id_processo_executando = proximo_processo->pid;
       proximo_processo->estado = EXECUTANDO;
       if (proximo_processo->pid == processo_copia->pid) {
@@ -271,11 +317,23 @@ static err_t so_trata_irq_err_cpu(so_t* self)
   //   no descritor do processo corrente, e reagir de acordo com esse erro
   //   (em geral, matando o processo)
 
-  // COMENTÁRIO PEDRO: Meus processos não dão erro, então vou deixar pra implementar depois
+  processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+
+  if (processo_atual != NULL) {
+    err_int = processo_atual->estado_cpu.erro;
+    err_t err = err_int;
+    if (err != ERR_OK) {
+      console_printf(self->console, "SO: IRQ tratada, erro na execução, eliminando processo: %s", processo_atual->nome);
+      so_chamada_mata_proc(self);
+      return ERR_OK;
+    }
+  }
+
   mem_le(self->mem, IRQ_END_erro, &err_int);
   err_t err = err_int;
+
   console_printf(self->console,
-    "SO: IRQ não tratada -- erro na CPU: %s", err_nome(err));
+    "SO: IRQ nao tratada -- erro na CPU: %s", err_nome(err));
   return ERR_CPU_PARADA;
 }
 
@@ -298,24 +356,16 @@ static err_t so_trata_irq_relogio(so_t* self)
       processo_atual->quantum = quantum();
     }
   }
-  console_printf(self->console, "SO: interrupção do relógio");
+  console_printf(self->console, "SO: interrupcao do relogio");
   return ERR_OK;
 }
 
 static err_t so_trata_irq_desconhecida(so_t* self, int irq)
 {
   console_printf(self->console,
-    "SO: não sei tratar IRQ %d (%s)", irq, irq_nome(irq));
+    "SO: nao sei tratar IRQ %d (%s)", irq, irq_nome(irq));
   return ERR_CPU_PARADA;
 }
-
-// Chamadas de sistema
-
-static void so_chamada_le(so_t* self);
-static void so_chamada_escr(so_t* self);
-static void so_chamada_cria_proc(so_t* self);
-static void so_chamada_mata_proc(so_t* self);
-static void so_chamada_espera_proc(so_t* self);
 
 static err_t so_trata_chamada_sistema(so_t* self)
 {
@@ -355,15 +405,6 @@ static err_t so_trata_chamada_sistema(so_t* self)
 
 static void so_chamada_le(so_t* self)
 {
-  // implementação com espera ocupada
-  //   deveria bloquear o processo se leitura não disponível.
-  //   no caso de bloqueio do processo, a leitura (e desbloqueio) deverá
-  //   ser feita mais tarde, em tratamentos pendentes em outra interrupção,
-  //   ou diretamente em uma interrupção específica do dispositivo, se for
-  //   o caso
-  // implementação lendo direto do terminal A
-  //   deveria usar dispositivo corrente de entrada do processo
-
   // leitura
   int terminal_dl = (id_processo_executando * 4) + 0;
   // estado leitura
@@ -374,16 +415,16 @@ static void so_chamada_le(so_t* self)
     term_le(self->console, terminal_el, &estado);
     if (estado != 0)
       break;
-    // como não está saindo do SO, o laço do processador não tá rodando
-    // esta gambiarra faz o console andar
-    // com a implementação de bloqueio de processo, esta gambiarra não
-    //   deve mais existir.
+    processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+    if (processo_atual != NULL) {
+      processo_atual->estado = BLOQUEADO;
+    }
     console_tictac(self->console);
     console_atualiza(self->console);
   }
   int dado;
   term_le(self->console, terminal_dl, &dado);
-  // com processo, deveria escrever no reg A do processo
+
   processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
   processo_atual->estado_cpu.registradorA = dado;
 }
@@ -406,8 +447,10 @@ static void so_chamada_escr(so_t* self)
     term_le(self->console, terminal_ee, &estado);
     if (estado != 0)
       break;
-    // como não está saindo do SO, o laço do processador não tá rodando
-    // esta gambiarra faz o console andar
+    processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+    if (processo_atual != NULL) {
+      processo_atual->estado = BLOQUEADO;
+    }
     console_tictac(self->console);
     console_atualiza(self->console);
   }
@@ -421,6 +464,7 @@ static void so_chamada_escr(so_t* self)
 
 processo_t* so_cria_processo(so_t* self, char nome[100])
 {
+  //TODO: escrever o pid do processo criado no A do criador
   adiciona_novo_processo_na_tabela(self->tabela_processos, nome);
   processo_t* processo_carregado = &self->tabela_processos->processos[self->tabela_processos->quantidade_processos - 1];
 
@@ -458,6 +502,10 @@ static void so_chamada_cria_proc(so_t* self)
 
 static void so_chamada_espera_proc(so_t* self) {
   console_printf(self->console, "SO: chamada espera processo");
+  int x;
+  int a;
+  mem_le(self->mem, IRQ_END_A, &a);
+  mem_le(self->mem, IRQ_END_X, &x);
   processo_t* processo_esperador = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
   processo_t* processo_esperado = &self->tabela_processos->processos[processo_esperador->estado_cpu.registradorX];
 
@@ -497,7 +545,7 @@ static int so_carrega_programa(so_t* self, char* nome_do_executavel)
     if (mem_escreve(self->mem, end, prog_dado(prog, end)) != ERR_OK)
     {
       console_printf(self->console,
-        "Erro na carga da memória, endereco %d\n", end);
+        "Erro na carga da memoria, endereco %d\n", end);
       return -1;
     }
   }

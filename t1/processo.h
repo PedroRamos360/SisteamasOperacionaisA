@@ -9,6 +9,12 @@ typedef enum estado_processo
   EXECUTANDO
 } estado_processo;
 
+typedef enum dispositivo_bloqueado
+{
+  ESCRITA,
+  LEITURA
+} dispositivo_bloqueado;
+
 typedef struct estado_cpu
 {
   int registradorX;
@@ -28,7 +34,9 @@ typedef struct processo_t
   struct processo_t* esperando_processo;
 
   estado_cpu estado_cpu;
+  dispositivo_bloqueado dispositivo_bloqueado;
 } processo_t;
+
 
 typedef struct tabela_processos_t
 {

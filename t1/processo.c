@@ -14,6 +14,13 @@ typedef enum estado_processo
   EXECUTANDO
 } estado_processo;
 
+typedef enum dispositivo_bloqueado
+{
+  NENHUM,
+  ESCRITA,
+  LEITURA
+} dispositivo_bloqueado;
+
 typedef struct estado_cpu
 {
   int registradorX;
@@ -33,6 +40,7 @@ typedef struct processo_t
   struct processo_t* esperando_processo;
 
   estado_cpu estado_cpu;
+  dispositivo_bloqueado dispositivo_bloqueado;
 } processo_t;
 
 typedef struct tabela_processos_t
@@ -66,6 +74,7 @@ processo_t* cria_processo(int pid, char nome[100], int estado)
   novo_processo->estado_cpu.registradorA = 0;
   novo_processo->estado_cpu.registradorPC = 0;
   novo_processo->estado_cpu.complemento = 0;
+  novo_processo->dispositivo_bloqueado = NENHUM;
   novo_processo->estado_cpu.modo = 1; // usuário
   novo_processo->estado_cpu.erro = ERR_OK;
   return novo_processo;
@@ -90,6 +99,7 @@ processo_t* copia_processo(processo_t* processo)
   novo_processo->estado_cpu.complemento = processo->estado_cpu.complemento;
   novo_processo->estado_cpu.modo = processo->estado_cpu.modo; // usuário
   novo_processo->estado_cpu.erro = processo->estado_cpu.erro;
+  novo_processo->dispositivo_bloqueado = processo->dispositivo_bloqueado;
   return novo_processo;
 }
 
