@@ -11,6 +11,7 @@ typedef enum estado_processo
 
 typedef enum dispositivo_bloqueado
 {
+  NENHUM,
   ESCRITA,
   LEITURA
 } dispositivo_bloqueado;

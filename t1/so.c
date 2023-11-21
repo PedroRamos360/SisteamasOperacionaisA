@@ -164,7 +164,6 @@ bool pode_desbloquear(so_t* self, processo_t* processo) {
 
   dispositivo_bloqueado dispositivo = processo->dispositivo_bloqueado;
   processo_t* processo_esperado = processo->esperando_processo;
-
   if (processo_esperado != NULL) {
     processo_t* processo_tabela = encontrar_processo_por_pid(self->tabela_processos, processo_esperado->pid);
     if (processo_tabela != NULL)
@@ -203,6 +202,8 @@ static void so_trata_pendencias(so_t* self)
       {
         // Se o processo pode ser desbloqueado, atualiza o seu estado
         processo->estado = PRONTO;
+        processo->dispositivo_bloqueado = NENHUM;
+        processo->esperando_processo = NULL;
       }
     }
   }
@@ -248,6 +249,7 @@ static void so_escalona(so_t* self)
       adiciona_processo_na_tabela(self->tabela_processos, processo_copia);
       processo_t* proximo_processo = pega_proximo_processo_disponivel(self->tabela_processos);
       if (proximo_processo == NULL) {
+        id_processo_executando = -1;
         mem_escreve(self->mem, IRQ_END_erro, ERR_CPU_PARADA);
         return;
       }
@@ -413,12 +415,14 @@ static void so_chamada_le(so_t* self)
   {
     int estado;
     term_le(self->console, terminal_el, &estado);
-    if (estado != 0)
+    if (estado != 0) {
       break;
-    processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
-    if (processo_atual != NULL) {
-      processo_atual->estado = BLOQUEADO;
     }
+    // processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+    // if (processo_atual != NULL) {
+    //   processo_atual->estado = BLOQUEADO;
+    //   processo_atual->dispositivo_bloqueado = LEITURA;
+    // }
     console_tictac(self->console);
     console_atualiza(self->console);
   }
@@ -447,10 +451,11 @@ static void so_chamada_escr(so_t* self)
     term_le(self->console, terminal_ee, &estado);
     if (estado != 0)
       break;
-    processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
-    if (processo_atual != NULL) {
-      processo_atual->estado = BLOQUEADO;
-    }
+    // processo_t* processo_atual = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
+    // if (processo_atual != NULL) {
+    //   processo_atual->estado = BLOQUEADO;
+    //   processo_atual->dispositivo_bloqueado = ESCRITA;
+    // }
     console_tictac(self->console);
     console_atualiza(self->console);
   }
@@ -492,6 +497,8 @@ static void so_chamada_cria_proc(so_t* self)
     {
       // deveria escrever no PC do descritor do processo criado
       processo_criado->estado_cpu.registradorPC = ender_carga;
+      processo_atual->estado_cpu.registradorA = processo_criado->pid;
+      mem_escreve(self->mem, IRQ_END_A, processo_criado->pid);
       return;
     }
   }
@@ -502,12 +509,15 @@ static void so_chamada_cria_proc(so_t* self)
 
 static void so_chamada_espera_proc(so_t* self) {
   console_printf(self->console, "SO: chamada espera processo");
-  int x;
-  int a;
-  mem_le(self->mem, IRQ_END_A, &a);
-  mem_le(self->mem, IRQ_END_X, &x);
   processo_t* processo_esperador = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
-  processo_t* processo_esperado = &self->tabela_processos->processos[processo_esperador->estado_cpu.registradorX];
+  int pid_processo_esperado = processo_esperador->estado_cpu.registradorX;
+
+  // verificar se processo esperado já acabou antes de colocar ele como esperados
+  if (encontrar_processo_por_pid(self->tabela_processos, pid_processo_esperado) == NULL) {
+    console_printf(self->console, "SO: processo %d já terminou de executar, liberando processo %s", pid_processo_esperado, processo_esperador->nome);
+    return;
+  }
+  processo_t* processo_esperado = &self->tabela_processos->processos[pid_processo_esperado];
 
   processo_esperador->esperando_processo = processo_esperado;
   processo_esperador->estado = BLOQUEADO;
