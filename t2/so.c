@@ -30,6 +30,7 @@ struct so_t
 {
   cpu_t *cpu;
   mem_t *mem;
+  mem_t *mem_secundaria;
   mmu_t *mmu;
   console_t *console;
   relogio_t *relogio;
@@ -48,9 +49,9 @@ static err_t so_trata_interrupcao(void *argC, int reg_A);
 // funções auxiliares
 static int so_carrega_programa(so_t *self, char *nome_do_executavel);
 static bool so_copia_str_do_processo(so_t *self, int tam, char str[tam],
-                                     int end_virt /*, processo*/);
+                                     int end_virt, processo_t *processo);
 
-so_t *so_cria(cpu_t *cpu, mem_t *mem, mmu_t *mmu,
+so_t *so_cria(cpu_t *cpu, mem_t *mem, mem_t *mem_secundaria, mmu_t *mmu,
               console_t *console, relogio_t *relogio)
 {
   so_t *self = malloc(sizeof(*self));
@@ -59,6 +60,7 @@ so_t *so_cria(cpu_t *cpu, mem_t *mem, mmu_t *mmu,
 
   self->cpu = cpu;
   self->mem = mem;
+  self->mem_secundaria = mem_secundaria;
   self->mmu = mmu;
   self->console = console;
   self->relogio = relogio;
@@ -336,7 +338,7 @@ static err_t so_trata_irq_reset(so_t *self)
   int ender = so_carrega_programa(self, nome_programa);
   processo_t *processo_adicionado = so_cria_processo(self, nome_programa);
 
-  if (ender != 100)
+  if (ender < 0)
   {
     console_printf(self->console, "SO: problema na carga do programa inicial");
     return ERR_CPU_PARADA;
@@ -371,6 +373,7 @@ static err_t so_trata_irq_err_cpu(so_t *self)
       so_chamada_mata_proc(self);
       return ERR_OK;
     }
+    return ERR_OK;
   }
 
   mem_le(self->mem, IRQ_END_erro, &err_int);
@@ -535,7 +538,7 @@ static void so_chamada_cria_proc(so_t *self)
   char nome[100];
 
   // copia_str_da_mem(100, nome, self->mem, ender_proc)
-  if (so_copia_str_do_processo(self, 100, nome, ender_proc))
+  if (so_copia_str_do_processo(self, 100, nome, ender_proc, processo_atual))
   {
     int ender_carga = so_carrega_programa(self, nome);
     processo_t *processo_criado = so_cria_processo(self, nome);
@@ -653,8 +656,9 @@ static int so_carrega_programa(so_t *self, char *nome_do_executavel)
 // Com memória virtual, cada valor do espaço de endereçamento do processo
 //   pode estar em memória principal ou secundária
 static bool so_copia_str_do_processo(so_t *self, int tam, char str[tam],
-                                     int end_virt /*, processo*/)
+                                     int end_virt, processo_t *processo)
 {
+  // TODO: pegar tabela de páginas do processo e usar aqui
   for (int indice_str = 0; indice_str < tam; indice_str++)
   {
     int caractere;

@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "err.h"
+#include "tabpag.h"
 
 int QUANTUM = 1;
 
@@ -40,6 +41,8 @@ typedef struct processo_t
 
   estado_cpu estado_cpu;
   dispositivo_bloqueado dispositivo_bloqueado;
+
+  tabpag_t *tabpag;
 } processo_t;
 
 typedef struct tabela_processos_t
@@ -68,6 +71,7 @@ processo_t *cria_processo(int pid, char nome[100], int estado)
   novo_processo->dispositivo_bloqueado = NENHUM;
   novo_processo->estado_cpu.modo = 1; // usuário
   novo_processo->estado_cpu.erro = ERR_OK;
+  novo_processo->tabpag = tabpag_cria();
   return novo_processo;
 }
 
@@ -91,6 +95,7 @@ processo_t *copia_processo(processo_t *processo)
   novo_processo->estado_cpu.modo = processo->estado_cpu.modo; // usuário
   novo_processo->estado_cpu.erro = processo->estado_cpu.erro;
   novo_processo->dispositivo_bloqueado = processo->dispositivo_bloqueado;
+  novo_processo->tabpag = processo->tabpag;
   return novo_processo;
 }
 
@@ -187,6 +192,24 @@ processo_t *pega_proximo_processo_disponivel(tabela_processos_t *tabela)
   return NULL;
 }
 
+void destroi_processo(processo_t *processo)
+{
+  if (processo == NULL)
+  {
+    return;
+  }
+
+  // Tem que liberar a memória aqui, mas da segfault com o código
+  // abaixo.
+
+  // if (processo->tabpag != NULL)
+  // {
+  //   tabpag_destroi(processo->tabpag);
+  // }
+
+  // free(processo);
+}
+
 bool remove_processo_tabela(tabela_processos_t *tabela, int targetPID)
 {
   for (int i = 0; i < tabela->quantidade_processos; i++)
@@ -198,6 +221,7 @@ bool remove_processo_tabela(tabela_processos_t *tabela, int targetPID)
         tabela->processos[j] = tabela->processos[j + 1];
       }
       tabela->quantidade_processos--;
+      destroi_processo(&(tabela->processos[i]));
       return true;
     }
   }
