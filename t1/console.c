@@ -118,7 +118,7 @@ static void init_curses(void)
   initscr();
   cbreak();   // lê cada char, não espera enter
   noecho();   // não mostra o que é digitado
-  timeout(0); // não espera digitar, retorna ERR se nada foi digitado
+  timeout(5); // não espera digitar, retorna ERR se nada foi digitado
   start_color();
   init_pair(COR_TXT_PAR, COLOR_GREEN, COLOR_BLACK);
   init_pair(COR_CURSOR_PAR, COLOR_BLACK, COLOR_GREEN);
