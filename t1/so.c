@@ -88,7 +88,8 @@ static void so_escalona(so_t* self);
 processo_t* so_cria_processo(so_t* self, char nome[100]);
 void so_salva_estado_cpu_no_processo(so_t* self);
 void so_carrega_estado_processo_na_cpu(so_t* self);
-bool pode_desbloquear(so_t* self, processo_t* processo);
+bool pode_desbloquear_entrada_saida(so_t* self, processo_t* processo);
+bool pode_desbloquear_por_espera(so_t* self, processo_t* processo);
 
 // Chamadas de sistema
 
@@ -153,31 +154,45 @@ void so_carrega_estado_processo_na_cpu(so_t* self) {
   mem_escreve(self->mem, IRQ_END_modo, processo_atual->estado_cpu.modo);
 }
 
-bool pode_desbloquear(so_t* self, processo_t* processo) {
+bool pode_desbloquear_entrada_saida(so_t* self, processo_t* processo) {
   int terminal_el = (id_processo_executando * 4) + 1;
   int terminal_ee = (id_processo_executando * 4) + 3;
+  int terminal_de = (id_processo_executando * 4) + 4;
 
   int estado_escrita;
   int estado_leitura;
+
   term_le(self->console, terminal_el, &estado_leitura);
   term_le(self->console, terminal_ee, &estado_escrita);
 
   dispositivo_bloqueado dispositivo = processo->dispositivo_bloqueado;
-  processo_t* processo_esperado = processo->esperando_processo;
-  if (processo_esperado != NULL) {
-    processo_t* processo_tabela = encontrar_processo_por_pid(self->tabela_processos, processo_esperado->pid);
-    if (processo_tabela != NULL)
-      return false;
-  }
 
   if (dispositivo == ESCRITA && estado_escrita == 0) {
     return false;
+  }
+  else if(dispositivo == ESCRITA && estado_escrita == 1) {
+    term_escr(self->console, terminal_ee, processo->estado_cpu.registradorX);
   }
 
   if (dispositivo == LEITURA && estado_leitura == 0) {
     return false;
   }
+  else if(dispositivo == LEITURA && estado_leitura == 1) {
+    term_le(self->console, terminal_de, &processo->estado_cpu.registradorX);
+  }
 
+  return true;
+}
+
+
+bool pode_desbloquear_por_espera(so_t* self, processo_t* processo) {
+  processo_t* processo_esperado = processo->esperando_processo;
+
+  if (processo_esperado != NULL) {
+    processo_t* processo_tabela = encontrar_processo_por_pid(self->tabela_processos, processo_esperado->pid);
+    if (processo_tabela != NULL)
+      return false;
+  }
   return true;
 }
 
@@ -197,17 +212,18 @@ static void so_trata_pendencias(so_t* self)
     processo_t* processo = &self->tabela_processos->processos[i];
     if (processo->estado == BLOQUEADO)
     {
-      // Se houver, verifica se o processo pode ser desbloqueado
-      if (pode_desbloquear(self, processo))
-      {
-        // Se o processo pode ser desbloqueado, atualiza o seu estado
+      if (processo->esperando_processo != NULL) {
+        if (pode_desbloquear_por_espera(self, processo)) {
+          processo->estado = PRONTO;
+          processo->esperando_processo = NULL;
+        }
+      }
+      else if (pode_desbloquear_entrada_saida(self, processo)) {
         processo->estado = PRONTO;
         processo->dispositivo_bloqueado = NENHUM;
-        processo->esperando_processo = NULL;
       }
     }
   }
-
   // Atualiza as contabilidades
 }
 static void so_escalona(so_t* self)
@@ -405,8 +421,6 @@ static err_t so_trata_chamada_sistema(so_t* self)
   return ERR_OK;
 }
 
-int terminal_em_uso = 0;
-
 static void so_chamada_le(so_t* self)
 {
   int terminal_de = (id_processo_executando * 4) + 2;
@@ -421,21 +435,14 @@ static void so_chamada_le(so_t* self)
   }
 
   // Verifica se o terminal está em uso
-  if (terminal_em_uso == 1) {
+  if (estado == 0) {
     // Se o terminal estiver sendo usado por outro processo, bloqueie este processo
     processo_atual->estado = BLOQUEADO;
     processo_atual->dispositivo_bloqueado = LEITURA;
   } else {
     // Se o terminal não estiver em uso, prossiga com a leitura e marque o terminal como em uso
-    terminal_em_uso = 1;
     term_le(self->console, terminal_de, &processo_atual->estado_cpu.registradorX);
-    processo_atual->estado_cpu.registradorA = 0;
-    terminal_em_uso = 0; // Libera o terminal após a leitura
-    processo_atual->estado = PRONTO;
   }
-
-  //console_tictac(self->console);
-  //console_atualiza(self->console);
 }
 
 void so_chamada_escr(so_t* self) {
@@ -451,20 +458,15 @@ void so_chamada_escr(so_t* self) {
   }
 
   // Verifica se o terminal está em uso
-  if (terminal_em_uso == 1) {
+  if (estado == 0) {
     // Se o terminal estiver sendo usado por outro processo, bloqueie este processo
     processo_atual->estado = BLOQUEADO;
     processo_atual->dispositivo_bloqueado = ESCRITA;
+    console_printf(self->console, "SO: AAAAAAAAAA processo %s bloqueado, esperando terminal", processo_atual->nome);
   } else {
     // Se o terminal não estiver em uso, prossiga com a escrita e marque o terminal como em uso
-    terminal_em_uso = 1;
     term_escr(self->console, terminal_de, processo_atual->estado_cpu.registradorX);
-    processo_atual->estado_cpu.registradorA = 0;
-    terminal_em_uso = 0; // Libera o terminal após a escrita
   }
-
-  //console_tictac(self->console);
-  //console_atualiza(self->console);
 }
 
 processo_t* so_cria_processo(so_t* self, char nome[100])
