@@ -545,17 +545,11 @@ static void so_chamada_cria_proc(so_t *self)
     processo_t *processo_criado = so_cria_processo(self, nome);
     int ender_carga = so_carrega_programa(self, nome, processo_criado);
 
-    if (ender_carga > 0)
-    {
-      // deveria escrever no PC do descritor do processo criado
-      processo_criado->estado_cpu.registradorPC = ender_carga;
-      processo_atual->estado_cpu.registradorA = processo_criado->pid;
-
-      int irq_end_a_virtual;
-      tabpag_traduz(self->tabpag, IRQ_END_A, &irq_end_a_virtual);
-      mmu_escreve(self->mmu, irq_end_a_virtual, processo_criado->pid, usuario);
-      return;
-    }
+    // deveria escrever no PC do descritor do processo criado
+    processo_criado->estado_cpu.registradorPC = ender_carga;
+    processo_atual->estado_cpu.registradorA = processo_criado->pid;
+    mem_escreve(self->mem, IRQ_END_A, processo_criado->pid);
+    return;
   }
   // deveria escrever -1 (se erro) ou 0 (se OK) no reg A do processo que
   //   pediu a criação
