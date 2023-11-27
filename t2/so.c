@@ -47,7 +47,7 @@ struct so_t
 static err_t so_trata_interrupcao(void *argC, int reg_A);
 
 // funções auxiliares
-static int so_carrega_programa(so_t *self, char *nome_do_executavel);
+static int so_carrega_programa(so_t *self, char *nome_do_executavel, processo_t *processo);
 static bool so_copia_str_do_processo(so_t *self, int tam, char str[tam],
                                      int end_virt, processo_t *processo);
 
@@ -266,6 +266,7 @@ static void so_escalona(so_t *self)
     }
     id_processo_executando = proximo_processo->pid;
     proximo_processo->estado = EXECUTANDO;
+    mmu_define_tabpag(self->mmu, proximo_processo->tabpag);
   }
   else
   {
@@ -296,6 +297,7 @@ static void so_escalona(so_t *self)
       }
       id_processo_executando = proximo_processo->pid;
       proximo_processo->estado = EXECUTANDO;
+      mmu_define_tabpag(self->mmu, proximo_processo->tabpag);
       if (proximo_processo->pid == processo_copia->pid)
       {
         so_salva_estado_cpu_no_processo(self);
@@ -335,8 +337,8 @@ static err_t so_trata_irq_reset(so_t *self)
 {
   // coloca um programa na memória
   char nome_programa[100] = "init.maq";
-  int ender = so_carrega_programa(self, nome_programa);
   processo_t *processo_adicionado = so_cria_processo(self, nome_programa);
+  int ender = so_carrega_programa(self, nome_programa, processo_adicionado);
 
   if (ender < 0)
   {
@@ -540,15 +542,18 @@ static void so_chamada_cria_proc(so_t *self)
   // copia_str_da_mem(100, nome, self->mem, ender_proc)
   if (so_copia_str_do_processo(self, 100, nome, ender_proc, processo_atual))
   {
-    int ender_carga = so_carrega_programa(self, nome);
     processo_t *processo_criado = so_cria_processo(self, nome);
+    int ender_carga = so_carrega_programa(self, nome, processo_criado);
 
     if (ender_carga > 0)
     {
       // deveria escrever no PC do descritor do processo criado
       processo_criado->estado_cpu.registradorPC = ender_carga;
       processo_atual->estado_cpu.registradorA = processo_criado->pid;
-      mem_escreve(self->mem, IRQ_END_A, processo_criado->pid);
+
+      int irq_end_a_virtual;
+      tabpag_traduz(self->tabpag, IRQ_END_A, &irq_end_a_virtual);
+      mmu_escreve(self->mmu, irq_end_a_virtual, processo_criado->pid, usuario);
       return;
     }
   }
@@ -562,6 +567,7 @@ static void so_chamada_espera_proc(so_t *self)
   console_printf(self->console, "SO: chamada espera processo");
   processo_t *processo_esperador = encontrar_processo_por_pid(self->tabela_processos, id_processo_executando);
   int pid_processo_esperado = processo_esperador->estado_cpu.registradorX;
+  // int pid_processo_esperado = 1;
 
   // verificar se processo esperado já acabou antes de colocar ele como esperados
   if (encontrar_processo_por_pid(self->tabela_processos, pid_processo_esperado) == NULL)
@@ -597,7 +603,7 @@ static void so_chamada_mata_proc(so_t *self)
 //   as páginas serão colocadas na memória principal por demanda.
 //   para simplificar ainda mais, a memória secundária pode ser alocada
 //   da forma como a principal está sendo alocada aqui (sem reuso)
-static int so_carrega_programa(so_t *self, char *nome_do_executavel)
+static int so_carrega_programa(so_t *self, char *nome_do_executavel, processo_t *processo)
 {
   // programa para executar na nossa CPU
   programa_t *prog = prog_cria(nome_do_executavel);
@@ -617,10 +623,12 @@ static int so_carrega_programa(so_t *self, char *nome_do_executavel)
   int quadro = quadro_ini;
   for (int pagina = pagina_ini; pagina <= pagina_fim; pagina++)
   {
-    tabpag_define_quadro(self->tabpag, pagina, quadro);
+    tabpag_define_quadro(processo->tabpag, pagina, quadro);
     quadro++;
   }
   self->quadro_livre = quadro;
+
+  mmu_define_tabpag(self->mmu, processo->tabpag);
 
   // carrega o programa na memória principal
   int end_fis_ini = quadro_ini * TAM_PAGINA;
